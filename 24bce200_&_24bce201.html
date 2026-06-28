@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>📘 Smart Phone Book</title>
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #e0eafc, #cfdef3);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 10px;
+  }
+
+  .container {
+    width: 95%;
+    max-width: 850px;
+    background: #fff;
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    animation: fadeIn 0.4s ease;
+  }
+
+  h2, h3 { text-align: center; color: #2b2b2b; font-weight: 600; }
+  h3 { margin-top: 30px; border-top: 2px solid #eee; padding-top: 15px; color: #444; }
+
+  .btn-group {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 15px;
+  }
+  .btn-group button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(45deg, #6c63ff, #8b7bff);
+    color: #fff;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+  .btn-group button:hover {
+    transform: scale(1.05);
+    background: linear-gradient(45deg, #8b7bff, #6c63ff);
+  }
+
+  input {
+    width: 100%; padding: 12px 15px; margin: 10px 0;
+    border: 1px solid #ddd; border-radius: 10px; font-size: 1em; transition: 0.25s ease;
+  }
+  input:focus { border-color: #6c63ff; box-shadow: 0 0 8px rgba(108,99,255,0.3); outline: none; }
+
+  #totalCount { text-align: center; font-weight: 600; color: #6c63ff; margin-bottom: 10px; }
+
+  .group-header {
+    font-weight: bold; font-size: 1.1em; margin-top: 15px;
+    color: #6c63ff; border-bottom: 2px solid #6c63ff33; padding-bottom: 5px;
+  }
+
+  .entry, .history-entry {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #f8f9ff; padding: 14px 18px; margin: 6px 0;
+    border-radius: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    transition: 0.3s ease;
+  }
+  .entry:hover, .history-entry:hover { transform: translateY(-2px); }
+
+  .entry span b, .history-entry span b { color: #6c63ff; }
+
+  .entry small, .history-entry small {
+    background: #6c63ff; color: #fff; border-radius: 10px;
+    padding: 3px 6px; font-size: 0.8em; margin-left: 6px;
+  }
+
+  .fav-btn {
+    background: none; font-size: 22px; color: #ccc; cursor: pointer;
+    transition: 0.3s ease; position: relative;
+  }
+  .fav-btn.fav { color: #ffd700; }
+  .fav-btn:hover { transform: scale(1.3); }
+
+  .fav-btn::after {
+    content: attr(data-tooltip);
+    position: absolute; bottom: 130%; left: 50%; transform: translateX(-50%);
+    background: #333; color: #fff; font-size: 0.8em;
+    padding: 4px 8px; border-radius: 6px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s ease; white-space: nowrap;
+  }
+  .fav-btn:hover::after { opacity: 1; }
+
+  .no-result { text-align: center; color: #888; font-style: italic; margin-top: 10px; }
+
+  .modal {
+    display: none; position: fixed; z-index: 10; top: 0; left: 0;
+    width: 100%; height: 100%; background: rgba(0,0,0,0.5);
+  }
+  .modal-content {
+    background: #fff; margin: 10% auto; width: 90%; max-width: 400px;
+    padding: 25px; border-radius: 20px; text-align: center;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  }
+  .close { float: right; font-size: 24px; cursor: pointer; color: #6c63ff; }
+  .close:hover { color: #ffb400; }
+  @keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
+
+  @media (max-width: 600px) {
+    .entry { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .entry div { align-self: flex-end; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h2>📘 Smart Phone Book</h2>
+
+  <div class="btn-group">
+    <button onclick="showAll()">All Contacts</button>
+    <button onclick="showFrequent()">Frequent</button>
+    <button onclick="showFavorites()">⭐ Favorites</button>
+    <button onclick="openModal()">➕ Add Contact</button>
+  </div>
+
+  <input id="searchInput" placeholder="🔍 Search by name or number..." onkeyup="liveSearch()">
+  <div id="totalCount">📇 Total: 0</div>
+  <div class="list" id="phoneList"></div>
+
+  <h3>📜 Call History</h3>
+  <div class="list" id="callHistoryList"></div>
+</div>
+
+<!-- Add Contact Modal -->
+<div id="addModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <span class="close" onclick="closeModal()">×</span>
+    <h3>Add / Update Contact</h3>
+    <input id="nameInput" placeholder="Enter Name"><br>
+    <input id="phoneInput" placeholder="Enter Phone Number"><br><br>
+    <button onclick="addEntry()">💾 Save</button>
+  </div>
+</div>
+
+<script>
+function Node(name, phone){this.name=name;this.phone=phone;this.left=null;this.right=null;}
+
+let root=null;
+let callHistory = JSON.parse(localStorage.getItem("callHistory") || "{}");
+let favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
+let callLog = JSON.parse(localStorage.getItem("callLog") || "[]");
+let currentView="all";
+let editingName = null;
+
+// ✅ Load contacts from localStorage
+function loadContacts() {
+  const saved = JSON.parse(localStorage.getItem("contacts") || "[]");
+  root = null;
+  for (let c of saved) root = insert(root, c.name, c.phone);
+}
+
+// ✅ Save all contacts into localStorage
+function saveContacts() {
+  const all = inOrder(root).map(e => ({ name: e.name, phone: e.phone }));
+  localStorage.setItem("contacts", JSON.stringify(all));
+}
+
+function compareNames(a,b){return a.localeCompare(b);}
+function insert(node,n,p){if(!node)return new Node(n,p);let c=compareNames(n,node.name);
+  if(c<0)node.left=insert(node.left,n,p);else if(c>0)node.right=insert(node.right,n,p);else{node.phone=p;}return node;}
+function inOrder(node,arr=[]){if(!node)return arr;inOrder(node.left,arr);arr.push(node);inOrder(node.right,arr);return arr;}
+function findMin(n){while(n.left)n=n.left;return n;}
+function deleteNode(n,name){if(!n)return null;let c=compareNames(name,n.name);
+  if(c<0)n.left=deleteNode(n.left,name);else if(c>0)n.right=deleteNode(n.right,name);
+  else{if(!n.left)return n.right;if(!n.right)return n.left;let m=findMin(n.right);n.name=m.name;n.phone=m.phone;n.right=deleteNode(n.right,m.name);}return n;}
+function fuzzyMatch(s,p){p=p.toLowerCase();s=s.toLowerCase();let i=0;for(let ch of s)if(ch===p[i])i++;return i===p.length;}
+function search(node,f,r=[]){if(!node)return r;search(node.left,f,r);if(fuzzyMatch(node.name,f)||node.phone.includes(f))r.push(node);search(node.right,f,r);return r;}
+function sortByCallFrequency(arr){return arr.sort((a,b)=>(callHistory[b.phone]||0)-(callHistory[a.phone]||0));}
+
+function toggleFavorite(phone){
+  const i=favorites.indexOf(phone);
+  if(i>-1)favorites.splice(i,1);else favorites.push(phone);
+  localStorage.setItem("favorites",JSON.stringify(favorites));
+  renderList(document.getElementById("searchInput").value);
+}
+
+function renderList(f=""){
+  const list=document.getElementById("phoneList");
+  list.innerHTML="";
+  let res=f===""?inOrder(root):search(root,f);
+
+  if(currentView==="frequent"){
+    res=sortByCallFrequency(res).filter(e=>(callHistory[e.phone]||0)>0);
+    document.getElementById("totalCount").innerText=`📞 Frequent Calls: ${res.length}`;
+  }else if(currentView==="favorite"){
+    res=res.filter(e=>favorites.includes(e.phone));
+    document.getElementById("totalCount").innerText=`⭐ Favorites: ${res.length}`;
+  }else{
+    document.getElementById("totalCount").innerText=`📇 Total: ${res.length}`;
+    let grouped={};
+    for(let e of res){let first=e.name[0].toUpperCase();if(!grouped[first])grouped[first]=[];grouped[first].push(e);}
+    for(let letter of Object.keys(grouped).sort()){
+      const header=document.createElement("div");
+      header.className="group-header";header.textContent=letter;
+      list.appendChild(header);
+      for(let e of grouped[letter])addContactHTML(list,e);
+    }
+    renderCallHistory();return;
+  }
+
+  if(res.length===0){list.innerHTML="<p class='no-result'>No results found...</p>";renderCallHistory();return;}
+  for(let e of res)addContactHTML(list,e);
+  renderCallHistory();
+}
+
+function addContactHTML(list,e){
+  const div=document.createElement("div");
+  div.className="entry";
+  const calls=callHistory[e.phone]||0;
+  const isFav=favorites.includes(e.phone);
+  const tooltip=isFav?"Remove from favorite":"Add to favorite";
+  const badge=calls>0?`<small>📞 x${calls}</small>`:"";
+  div.innerHTML=`<span><b>${e.name}</b> : ${e.phone} ${badge}</span>
+    <div>
+      <button class="fav-btn ${isFav?'fav':''}" data-tooltip="${tooltip}" onclick="toggleFavorite('${e.phone}')">⭐</button>
+      <button onclick="callNumber('${e.phone}','${e.name}')">📞</button>
+      <button onclick="editEntry('${e.name}','${e.phone}')">✏️</button>
+      <button onclick="deleteEntry('${e.name}')">❌</button>
+    </div>`;
+  list.appendChild(div);
+}
+
+function callNumber(phone,name){
+  callHistory[phone]=(callHistory[phone]||0)+1;
+  callLog.push({name,phone,timestamp:new Date().toLocaleString()});
+  localStorage.setItem("callHistory",JSON.stringify(callHistory));
+  localStorage.setItem("callLog",JSON.stringify(callLog));
+  renderList(document.getElementById("searchInput").value);
+}
+
+function renderCallHistory(){
+  const logDiv=document.getElementById("callHistoryList");
+  logDiv.innerHTML="";
+  if(callLog.length===0){logDiv.innerHTML="<p class='no-result'>No calls made yet...</p>";return;}
+  for(let log of callLog.slice().reverse()){
+    const div=document.createElement("div");
+    div.className="history-entry";
+    div.innerHTML=`<span><b>${log.name}</b> : ${log.phone}</span><small>${log.timestamp}</small>`;
+    logDiv.appendChild(div);
+  }
+}
+
+function addEntry() {
+  let name = document.getElementById("nameInput").value.trim();
+  let phone = document.getElementById("phoneInput").value.trim();
+  if (!name || !phone) {
+    alert("Please enter both name and phone.");
+    return;
+  }
+
+  if (editingName) {
+    if (editingName !== name) {
+      root = deleteNode(root, editingName);
+    }
+    editingName = null;
+  }
+
+  root = insert(root, name, phone);
+  saveContacts(); // ✅ Save to localStorage
+
+  closeModal();
+  document.getElementById("nameInput").value = "";
+  document.getElementById("phoneInput").value = "";
+  renderList(document.getElementById("searchInput").value);
+}
+
+function editEntry(name, phone) {
+  editingName = name;
+  openModal();
+  document.getElementById("nameInput").value = name;
+  document.getElementById("phoneInput").value = phone;
+}
+
+function deleteEntry(name){
+  if(confirm("Delete "+name+"?")){
+    root=deleteNode(root,name);
+    saveContacts(); // ✅ Save after delete
+    renderList(document.getElementById("searchInput").value);
+  }
+}
+
+function liveSearch(){renderList(document.getElementById("searchInput").value);}
+function showAll(){currentView="all";renderList();}
+function showFrequent(){currentView="frequent";renderList();}
+function showFavorites(){currentView="favorite";renderList();}
+function openModal(){document.getElementById("addModal").style.display="block";}
+function closeModal(){document.getElementById("addModal").style.display="none";}
+window.onclick=e=>{if(e.target==document.getElementById("addModal"))closeModal();}
+
+// ✅ Initialize on page load
+loadContacts();
+renderList();
+</script>
+</body>
+</html>
